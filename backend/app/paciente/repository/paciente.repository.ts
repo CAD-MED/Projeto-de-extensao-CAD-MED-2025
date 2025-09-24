@@ -2,6 +2,22 @@ import { Users, User } from '../models/User.model';
 import { CreationAttributes } from 'sequelize';
 
 class UserRepository {
+    public async getAll(): Promise<User[]> {
+        try {
+            return await User.findAll();
+        } catch (error) {
+            throw new Error('Erro ao listar usuários: ' + error);
+        }
+    }
+
+    public async getOne(id: number): Promise<User | null> {
+        try {
+            return await User.findByPk(id);
+        } catch (error) {
+            throw new Error('Erro ao buscar usuário: ' + error);
+        }
+    }
+
     // Método para criar múltiplos usuários
     public async createUsers(users: CreationAttributes<User>[]): Promise<void> {
         try {

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import { AppModule } from './app/app.module';
 import cors from 'cors';
