@@ -28,7 +28,7 @@ export const createPacienteSchema = Joi.object({
 });
 
 // Schema para validação de múltiplos pacientes
-export const createMultiplosPacientesSchema = Joi.object({
+/*export const createMultiplosPacientesSchema = Joi.object({
     password: Joi.string().required().messages({
         'string.empty': 'Senha é obrigatória'
     }),
@@ -36,7 +36,7 @@ export const createMultiplosPacientesSchema = Joi.object({
         'array.min': 'Deve haver pelo menos um paciente na lista',
         'array.base': 'Pacientes deve ser uma lista'
     })
-});
+});*/
 
 // Schema para validação de atualização de paciente
 export const updatePacienteSchema = Joi.object({
