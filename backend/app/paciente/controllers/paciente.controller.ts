@@ -1,59 +1,172 @@
 import express, { Request, Response } from 'express';
-import UserService from '../services/paciente.service';
+import PacienteService from '../services/paciente.service';
+import { validate, validateParams, validateQuery } from '../../middleware/validation.middleware';
+import { asyncHandler, AppError } from '../../middleware/error.middleware';
+import { apiLogger } from '../../../config/logger.config';
+import { 
+    createMultiplosPacientesSchema,
+    updatePacienteSchema,
+    getPacientesQuerySchema,
+    pacienteParamsSchema
+} from '../validation/paciente.validation';
+import { ApiResponse } from '../dto/paciente.dto';
 import 'dotenv/config';
 
 const router = express.Router();
 
-// // GET /pacientes - Retorna todos os pacientes
-router.get('/pacientes', async (req: Request, res: Response) => {
-     try {
-         const pacientes = await UserService.getAllUsers();
-         res.status(200).json(pacientes); // Resposta com status 200 e lista de pacientes em formato JSON
-     } catch (error) {
-         console.log(error)
-         res.status(500).json({ error: error });
-     }
- });
+/**
+ * GET /pacientes - Retorna todos os pacientes com paginação e filtros
+ */
+router.get('/pacientes', 
+    validateQuery(getPacientesQuerySchema),
+    asyncHandler(async (req: Request, res: Response) => {
+        apiLogger.info('Requisição para listar pacientes', { 
+            query: req.query,
+            ip: req.ip 
+        });
 
-// // GET /pacientes/:id - Retorna um paciente específico por ID
-// router.get('/pacientes/:id', async (req: Request, res: Response) => {
-//     try {
-//         const pacienteId = parseInt(req.params.id);
-//         const paciente = await UserService.getUserById(pacienteId);
+        const resultado = await PacienteService.getAllPacientes(req.query);
 
-//         if (!paciente) {
-//             return res.status(404).json({ error: 'Paciente não encontrado' });
-//         }
+        const response: ApiResponse = {
+            success: true,
+            message: 'Pacientes listados com sucesso',
+            data: resultado,
+            timestamp: new Date().toISOString()
+        };
 
-//         res.status(200).json(paciente);
-//     } catch (error) {
-//         res.status(500).json({ error: error });
-//     }
-// });
+        apiLogger.info('Pacientes listados com sucesso', { 
+            total: resultado.pagination.total,
+            pagina: resultado.pagination.page 
+        });
 
-router.post('/pacientes', async (req: Request, res: Response) => {
-    try {
-        const { pacientes, password } = req.body; // Recebe a lista de pacientes e a senha a partir do corpo da requisição
+        res.status(200).json(response);
+    })
+);
 
-        // Obter a senha do arquivo .env
+/**
+ * GET /pacientes/:id - Retorna um paciente específico por ID
+ */
+router.get('/pacientes/:id',
+    validateParams(pacienteParamsSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+        const id = parseInt(req.params.id);
+
+        apiLogger.info('Requisição para buscar paciente por ID', { 
+            id,
+            ip: req.ip 
+        });
+
+        const paciente = await PacienteService.getPacienteById(id);
+
+        const response: ApiResponse = {
+            success: true,
+            message: 'Paciente encontrado com sucesso',
+            data: paciente,
+            timestamp: new Date().toISOString()
+        };
+
+        apiLogger.info('Paciente encontrado com sucesso', { id, nome: paciente.nome });
+
+        res.status(200).json(response);
+    })
+);
+
+/**
+ * POST /pacientes - Cria múltiplos pacientes
+ */
+router.post('/pacientes',
+    validate({ body: createMultiplosPacientesSchema }),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { pacientes, password } = req.body;
+
+        apiLogger.info('Requisição para criar múltiplos pacientes', { 
+            quantidade: pacientes?.length,
+            ip: req.ip 
+        });
+
+        // Verificar senha da API
         const REQUIRED_PASSWORD = process.env.API_PASSWORD;
-
-        // Verifica se a senha foi fornecida e se está correta
         if (password !== REQUIRED_PASSWORD) {
-            return res.status(403).json({ error: 'Senha inválida. Acesso negado.' });
+            apiLogger.warn('Tentativa de acesso com senha inválida', { ip: req.ip });
+            throw new AppError('Senha inválida. Acesso negado.', 403);
         }
 
-        // Verifica se "pacientes" é um array
-        if (!Array.isArray(pacientes)) {
-            return res.status(400).json({ error: 'O corpo da requisição deve ser uma lista de pacientes' });
-        }
+        await PacienteService.createMultiplosPacientes(pacientes);
 
-        // Cria os pacientes se a senha estiver correta
-        await UserService.createMultipleUsers(pacientes);
-        res.status(201).json({ message: 'Pacientes criados com sucesso' });
-    } catch (error) {
-        res.status(500).json({ error: error || error });
-    }
-});
+        const response: ApiResponse = {
+            success: true,
+            message: 'Pacientes criados com sucesso',
+            timestamp: new Date().toISOString()
+        };
+
+        apiLogger.info('Múltiplos pacientes criados com sucesso', { 
+            quantidade: pacientes.length 
+        });
+
+        res.status(201).json(response);
+    })
+);
+
+/**
+ * PUT /pacientes/:id - Atualiza um paciente
+ */
+router.put('/pacientes/:id',
+    validate({
+        params: pacienteParamsSchema,
+        body: updatePacienteSchema
+    }),
+    asyncHandler(async (req: Request, res: Response) => {
+        const id = parseInt(req.params.id);
+
+        apiLogger.info('Requisição para atualizar paciente', { 
+            id,
+            dados: req.body,
+            ip: req.ip 
+        });
+
+        const paciente = await PacienteService.updatePaciente(id, req.body);
+
+        const response: ApiResponse = {
+            success: true,
+            message: 'Paciente atualizado com sucesso',
+            data: paciente,
+            timestamp: new Date().toISOString()
+        };
+
+        apiLogger.info('Paciente atualizado com sucesso', { 
+            id, 
+            nome: paciente.nome 
+        });
+
+        res.status(200).json(response);
+    })
+);
+
+/**
+ * DELETE /pacientes/:id - Remove um paciente
+ */
+router.delete('/pacientes/:id',
+    validateParams(pacienteParamsSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+        const id = parseInt(req.params.id);
+
+        apiLogger.info('Requisição para deletar paciente', { 
+            id,
+            ip: req.ip 
+        });
+
+        await PacienteService.deletePaciente(id);
+
+        const response: ApiResponse = {
+            success: true,
+            message: 'Paciente deletado com sucesso',
+            timestamp: new Date().toISOString()
+        };
+
+        apiLogger.info('Paciente deletado com sucesso', { id });
+
+        res.status(200).json(response);
+    })
+);
 
 export const pacienteController = router;
